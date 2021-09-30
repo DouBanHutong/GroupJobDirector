@@ -6,7 +6,29 @@
     <artifactId>group-job-director</artifactId>
     <version>0.0.1-SNAPSHOT</version>
     <name>group-job-director</name>
+    <url>https://github.com/DouBanHutong/GroupJobDirector</url>
     <description>任务分组调度器</description>
+    <scm>
+        <url>https://github.com/DouBanHutong/GroupJobDirector</url>
+        <connection>https://github.com/DouBanHutong/GroupJobDirector.git</connection>
+    </scm>
+    <licenses>
+        <license>
+            <name>The Apache License, Version 2.0</name>
+            <url>https://www.apache.org/licenses/LICENSE-2.0.txt</url>
+        </license>
+    </licenses>
+    <developers>
+        <developer>
+            <name>invooker</name>
+            <id>invooker</id>
+            <email>southeryf@live.com</email>
+            <roles>
+                <role>Developer</role>
+            </roles>
+            <timezone>+8</timezone>
+        </developer>
+    </developers>
     <properties>
         <java.version>1.8</java.version>
     </properties>
@@ -32,7 +54,30 @@
                     </compilerArgs>
                 </configuration>
             </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-gpg-plugin</artifactId>
+                <version>1.6</version>
+                <executions>
+                    <execution>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>sign</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
         </plugins>
     </build>
+    <distributionManagement>
+        <snapshotRepository>
+            <id>ossrh</id>
+            <url>https://oss.sonatype.org/content/repositories/snapshots/</url>
+        </snapshotRepository>s
+        <repository>
+            <id>ossrh</id>
+            <url>https://oss.sonatype.org/service/local/staging/deploy/maven2/</url>
+        </repository>
+    </distributionManagement>
 
 </project>

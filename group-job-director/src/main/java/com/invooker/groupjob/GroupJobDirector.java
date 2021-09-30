@@ -31,7 +31,7 @@ public class GroupJobDirector<T> {
     private ExecutorService jobExecutorPool;
 
 
-    private GroupJobDirector(){}
+    public GroupJobDirector(){}
 
 
     public boolean push(T jobUnit){
@@ -48,37 +48,33 @@ public class GroupJobDirector<T> {
 
     private void run(){
         if(null != scheduledLoopThreadPool){
-            scheduledLoopThreadPool.scheduleWithFixedDelay(new Runnable() {
-                @Override
-                public void run() {
-                    long needExecuteSize = getNeedExecuteSize();
-                    if(needExecuteSize > 0){
-                        List<Pair<T,Long>> currentToBeExecutedJobs = queueLimit > 1 ? new ArrayList<>(queueLimit) : new ArrayList<>(1);
-                        while (needExecuteSize > 0){
-                            Pair<T,Long> currentPair = jobList.pollFirst();
-                            if(null != currentPair){
-                                jobListLength.decrementAndGet();
-                                currentToBeExecutedJobs.add(currentPair);
-                                needExecuteSize--;
-                            }else {
-                                break;
-                            }
+            scheduledLoopThreadPool.scheduleWithFixedDelay(() -> {
+                long needExecuteSize = getNeedExecuteSize();
+                if(needExecuteSize > 0){
+                    List<Pair<T,Long>> currentToBeExecutedJobs = queueLimit > 1 ? new ArrayList<>(queueLimit) : new ArrayList<>(1);
+                    while (needExecuteSize > 0){
+                        Pair<T,Long> currentPair = jobList.pollFirst();
+                        if(null != currentPair){
+                            jobListLength.decrementAndGet();
+                            currentToBeExecutedJobs.add(currentPair);
+                            needExecuteSize--;
+                        }else {
+                            break;
                         }
+                    }
 
-                        logConsumer.accept("Prepare to execute new jobs:" + currentToBeExecutedJobs.size());
-                        if(null != jobExecutor){
-                            try {
-                                jobExecutorPool.submit(new Runnable() {
-                                    @Override
-                                    public void run() {
-                                        logConsumer.accept("Executing job");
-                                        jobExecutor.accept(currentToBeExecutedJobs);
-                                    }
-                                });
-                                lastTime = System.currentTimeMillis();
-                            }catch (Exception e){
-                                logConsumer.accept("Execute jobs Exception Catch =>" + e.toString());
-                            }
+                    logConsumer.accept("Prepare to execute new jobs:" + currentToBeExecutedJobs.size());
+                    if(null != jobExecutor){
+                        try {
+                            jobExecutorPool.submit(() -> {
+                                logConsumer.accept("Executing job");
+                                try {
+                                    jobExecutor.accept(currentToBeExecutedJobs);
+                                }catch (Exception ignore){}
+                            });
+                            lastTime = System.currentTimeMillis();
+                        }catch (Exception e){
+                            logConsumer.accept("Execute jobs Exception Catch =>" + e);
                         }
                     }
                 }
@@ -100,40 +96,23 @@ public class GroupJobDirector<T> {
         return 0L;
     }
 
+    public GroupJobDirector<T> Build(Long jobExecuteTimeInterval, Consumer<List<Pair<T,Long>>> jobExecutor, Consumer<String> logConsumer, Integer queueLimit, Long totalWaitingLimit, Integer concurrency){
 
+        this.timeInterval = (null != jobExecuteTimeInterval && jobExecuteTimeInterval > 0) ? jobExecuteTimeInterval : 0L;
+        this.queueLimit = (null != queueLimit && queueLimit > 0) ? queueLimit : 1;
+        this.totalWaitingLimit = (null != totalWaitingLimit && totalWaitingLimit > 0) ? totalWaitingLimit : Long.MAX_VALUE;
 
-    public class Builder {
-        private int queueLimit;
-        private long totalWaitingLimit;
-        private int concurrency;
-        private long timeInterval;
-        private Consumer<List<Pair<T,Long>>> jobExecutor;
-        private Consumer<String> logConsumer;
+        this.jobExecutor = null != jobExecutor ? jobExecutor : job -> {};
+        this.logConsumer = null != logConsumer ? logConsumer : log -> {};
 
-        public Builder(Long jobExecuteTimeInterval, Consumer<List<Pair<T,Long>>> jobExecutor, Consumer<String> logConsumer, Integer queueLimit, Long totalWaitingLimit, Integer concurrency){
-            this.timeInterval = (null != jobExecuteTimeInterval && jobExecuteTimeInterval > 0) ? jobExecuteTimeInterval : 0L;
-            this.queueLimit = (null != queueLimit && queueLimit > 0) ? queueLimit : 1;
-            this.totalWaitingLimit = (null != totalWaitingLimit && totalWaitingLimit > 0) ? totalWaitingLimit : Long.MAX_VALUE;
-            this.concurrency = (null != concurrency && concurrency > 0) ? concurrency : 1;
-            this.jobExecutor = null != jobExecutor ? jobExecutor : job -> {};
-            this.logConsumer = null != logConsumer ? logConsumer : log -> {};
-        }
-        public GroupJobDirector<T> build() {
-            GroupJobDirector<T> result = new GroupJobDirector<T>();
-            result.running = true;
-            result.queueLimit = this.queueLimit;
-            result.totalWaitingLimit = this.totalWaitingLimit;
-            result.timeInterval = this.timeInterval;
-            result.jobExecutor = this.jobExecutor;
-            result.logConsumer = this.logConsumer;
-            result.jobList = new ConcurrentLinkedDeque();
-            result.jobListLength.set(0);
-
-            scheduledLoopThreadPool = Executors.newSingleThreadScheduledExecutor();
-            jobExecutorPool = Executors.newFixedThreadPool(concurrency);
-            result.run();
-            return result;
-        }
+        this.jobList = new ConcurrentLinkedDeque();
+        this.jobListLength = new AtomicLong(0L);
+        this.scheduledLoopThreadPool = Executors.newSingleThreadScheduledExecutor();
+        int trueConcurrency = (null != concurrency && concurrency > 0) ? concurrency : 1;
+        this.jobExecutorPool = Executors.newFixedThreadPool(trueConcurrency);
+        this.run();
+        this.running = true;
+        return this;
     }
 
 }
